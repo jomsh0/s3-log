@@ -2,10 +2,10 @@
 
 ## Use an S3 bucket to log traffic to an arbitrary webpage
 
-The concept uses two buckets, in fact. One stores a publicly accessible tracking
-pixel, and has Amazon S3's built-in access logging enabled. The other bucket
-stores the logs (storing logs on the bucket being logged results in a vicious
-cycle, as the logging itself accesses the bucket, generating more logs).
+The concept uses two buckets: one stores the logs, and the other stores a
+publicly accessible tracking pixel and has Amazon S3's built-in access logging
+enabled. (Storing logs on the bucket being logged results in a vicious cycle, as
+the logging itself accesses the bucket, generating more logs.)
 
 The actual referrer is stored in the query of the tracking pixel request
 (presumably placed there by JavaScript using the `document.referrer` API). The
