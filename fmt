@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+cmark-gfm -t commonmark --width 80
