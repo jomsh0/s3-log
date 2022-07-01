@@ -16,13 +16,9 @@ filter() {
            select(.user_id // "" | endswith("user/api-util") | not) |
            select(.ip != "'"$PUB_IP"'")'
 }
+# filter
 
-filter
-
-# if [ -z "${outdir:-}" ]; then
-# elif ! [ -d "${outdir}" -a -w "${outdir}" ]; then
-#     echo 'Bad out directory'
-#     exit 1
-# else
-#     filter | split
-# fi
+geoip() {
+    curl -fsL https://ip.seeip.org/geoip/$1
+}
+# while read ip; do geoip $ip; done
