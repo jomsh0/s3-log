@@ -1,5 +1,11 @@
 #!/usr/bin/env sh
 
+# Phasing this script out. Uses `jq` to filter out worthless log entries.
+# Previously, it could append entries to a permanent .json archive, with the
+# archive file determined per-entry by the S3 bucket name. Something similar is
+# probably going to become automatic behavior in the TypeScript module, but
+# categorized by origin or URL.
+
 set -o pipefail
 
 PUB_IP=$(curl -fs https://ip.seeip.org/) ||
@@ -11,34 +17,12 @@ filter() {
            select(.ip != "'"$PUB_IP"'")'
 }
 
-split() {
-    while read json; do
-        local key=$(echo "$json" | jq -r '.log')
-        local pfx=${key%%/*}
-        case "$pfx" in
-            j-kqz) ;;
-                *) >&2 echo 'ERROR unknown prefix'
-                   return 1 ;;
-        esac
-        local log=${outdir%/}/$pfx.json
-        echo "$json" >> "$log"
-    done
-}
+filter
 
-while getopts 'o:' opt; do
-    case "$opt" in
-        o) outdir=$OPTARG ;;
-        *) ;;
-    esac
-done
-
-shift $(($OPTIND-1))
-
-if [ -z "${outdir:-}" ]; then
-    filter
-elif ! [ -d "${outdir}" -a -w "${outdir}" ]; then
-    echo 'Bad out directory'
-    exit 1
-else
-    filter | split
-fi
+# if [ -z "${outdir:-}" ]; then
+# elif ! [ -d "${outdir}" -a -w "${outdir}" ]; then
+#     echo 'Bad out directory'
+#     exit 1
+# else
+#     filter | split
+# fi
