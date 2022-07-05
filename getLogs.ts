@@ -1,15 +1,16 @@
-#!/usr/bin/env -S deno run --check --allow-run=aws --allow-env --allow-read=${HOME}/.aws --allow-net
+#!/usr/bin/env -S deno run --check --allow-run=aws --allow-env --allow-read=.,${HOME}/.aws --allow-net --allow-write=.
 
 import { ApiFactory } from 'https://deno.land/x/aws_api/client/mod.ts'
 import { S3, type ListObjectsV2Output } from 'https://deno.land/x/aws_api/services/s3/mod.ts'
 import { assert } from 'https://deno.land/std/testing/asserts.ts'
-import { writeAll, readAll } from 'https://deno.land/std/streams/conversion.ts'
+import { writeAll } from 'https://deno.land/std/streams/conversion.ts'
+import { readLines } from 'https://deno.land/std/io/mod.ts'
 import { parse } from 'https://deno.land/std/flags/mod.ts'
 
 const $ = parse(Deno.args, {
-    default: { delete: false, list: false, logfile: '.s3-log.json', pixel: '/c.gif' },
-    string: [ 'bucket', 'prefix', 'region', 'logfile', 'pixel' ],
-    alias: { list: 'l', delete: 'd', bucket: 'b', prefix: 'p', region: 'r', logfile: 'f', pixel: 'x' }
+    default: { delete: false, list: false, logfile: '.s3-log.json', ipDB: '.s3-log.ipdb.json', pixel: '/c.gif' },
+    string: [ 'bucket', 'prefix', 'region', 'logfile', 'ipDB', 'pixel' ],
+    alias: { list: 'l', delete: 'd', bucket: 'b', prefix: 'p', region: 'r', logfile: 'f', pixel: 'x', ipDB: 'i' }
 })
 
 const td = new TextDecoder
@@ -63,6 +64,52 @@ for await (const [ Key, entries ] of structLogs(list)) {
 }
 
 Deno.close(logFile.rid)
+
+updateIpDB()
+
+async function updateIpDB() {
+    let logFile: Deno.FsFile
+    try { logFile = await Deno.open($.logfile, { read: true }) }
+    catch(_e) { return }
+
+    const ipset = await readIpDB()
+        , ipDB = await Deno.open($.ipDB, { append: true, create: true })
+
+    try {
+        for await (const line of readLines(logFile)) {
+            const { ip } = JSON.parse(line)
+            if (ipset.has(ip)) { continue }
+            ipset.add(ip)
+
+            jsonOutStream(
+                await fetch(`https://ip.seeip.org/geoip/${ip}`).then(resp => resp.json()),
+                ipDB
+            )
+        }
+    }
+    finally {
+        Deno.close(logFile.rid)
+        Deno.close(ipDB.rid)
+    }
+}
+
+async function readIpDB() {
+    let ipDB: Deno.FsFile
+    try { ipDB = await Deno.open($.ipDB, { read: true }) }
+    catch(_e) { return new Set<string> }
+
+    try {
+        const ipset = new Set<string>
+        for await (const line of readLines(ipDB)) {
+            const { ip } = JSON.parse(line)
+            ipset.add(ip)
+        }
+        return ipset
+    }
+    finally {
+        Deno.close(ipDB.rid)
+    }
+}
 
 async function jsonOutStream(obj: unknown, writer: Deno.Writer = Deno.stdout) {
     //if (!newline) { buf = buf.subarray(buf.byteOffset, buf.byteLength - 1) }
