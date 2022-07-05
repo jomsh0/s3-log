@@ -1,53 +1,51 @@
-#!/usr/bin/env -S deno run --check --allow-env --allow-read=${HOME}/.aws --allow-net
+#!/usr/bin/env -S deno run --check --allow-run=aws --allow-env --allow-read=${HOME}/.aws --allow-net
 
-import { ApiFactory } from 'https://deno.land/x/aws_api/client/mod.ts';
-import { S3, Delete, type ListObjectsV2Output } from 'https://deno.land/x/aws_api/services/s3/mod.ts';
-import { assert } from 'https://deno.land/std/testing/asserts.ts';
-import { writeAllSync, readAll } from 'https://deno.land/std/streams/conversion.ts'
+import { ApiFactory } from 'https://deno.land/x/aws_api/client/mod.ts'
+import { S3, type ListObjectsV2Output } from 'https://deno.land/x/aws_api/services/s3/mod.ts'
+import { assert } from 'https://deno.land/std/testing/asserts.ts'
+import { writeAll, readAll } from 'https://deno.land/std/streams/conversion.ts'
 import { parse } from 'https://deno.land/std/flags/mod.ts'
 
 const $ = parse(Deno.args, {
-    default: { delete: false, list: false, bucket: 'jomshcc-log', region: 'us-east-2' },
-    string: [ 'bucket', 'prefix', 'region' ],
-    alias: { list: 'l', delete: 'd', bucket: 'b', prefix: 'p', region: 'r' }
+    default: { delete: false, list: false, logfile: '.s3-log.json', pixel: '/c.gif' },
+    string: [ 'bucket', 'prefix', 'region', 'logfile', 'pixel' ],
+    alias: { list: 'l', delete: 'd', bucket: 'b', prefix: 'p', region: 'r', logfile: 'f', pixel: 'x' }
 })
 
-const factory = new ApiFactory({ region: $.region })
-    , s3 = new S3(factory)
+const td = new TextDecoder
     , te = new TextEncoder
+    , factory = await mkFactory($.region)
+    , s3 = new S3(factory)
 
-// type Log = ReturnType<typeof structLogs> extends AsyncGenerator<infer T> ? T : never
-// type LogEntry = { date: Date, ip: string, source: string, referrer: string | null, ua: string }
+async function mkFactory(region: string) {
+    let factory = new ApiFactory(region ? { region } : {})
 
-await factory.ensureCredentialsAvailable();
+    try {
+        await factory.determineCurrentRegion()
+    }
+    catch(_e) {
+        region = td.decode(
+            await Deno.run({
+                cmd: ['aws', 'configure', 'get', 'region'],
+                stdout: 'piped'
+            }).output()
+        ).trim()
 
-// if ($.delete && Deno.isatty(Deno.stdin.rid)) {
-//     const text = new TextDecoder().decode(await readAll(Deno.stdin))
-//         , keys = text.trim()
-//             .split(/\r?\n/)
-//             .map<LogEntry>(s => JSON.parse(s))
-//             .map<string>( ({ log }) => log )
-//             .reduce<string[]>(
-//                 (p, key, _i, _a) => {
-//                     if (!p.includes(key)) { p.push(key) }
-//                     return p
-//                 }
-//                 , [] )
+        factory = new ApiFactory({ region })
+    }
 
-//     //const Objects = keys.map( Key => ({ Key }) )
-//     //    , resp = await s3.deleteObjects({ Bucket: $.bucket, Delete: { Objects } })
-
-//     for (const Key of keys) { await s3.deleteObject({ Bucket: $.bucket, Key }) }
-//     Deno.exit()
-// }
+    await factory.ensureCredentialsAvailable();
+    return factory
+}
 
 const list = await s3.listObjectsV2({ Bucket: $.bucket, Prefix: $.prefix })
 if ($.list) {
-    jsonOut(list)
+    jsonOutStream(list)
     Deno.exit()
 }
 
 const my_ip = await fetch('https://ip.seeip.org/').then(r => r.text())
+    , logFile = await Deno.open($.logfile, { create: true, append: true })
 
 for await (const [ Key, entries ] of structLogs(list)) {
     for (const entry of entries) {
@@ -55,17 +53,20 @@ for await (const [ Key, entries ] of structLogs(list)) {
             , path = decodeURIComponent(url.pathname)
             , referrer = url.searchParams.get('r')
         
-        if (path !== '/c.gif' || ip === my_ip) { continue }
+        if (path !== $.pixel || ip === my_ip) { continue }
 
-        jsonOut({ date, ip, source, referrer, ua })
+        await jsonOutStream({ date, ip, source, referrer, ua }, logFile)
     }
-    if ($.delete) { await s3.deleteObject({ Bucket: $.bucket, Key}) }
+
+    // if ($.delete) {}
+    await s3.deleteObject({ Bucket: $.bucket, Key})
 }
 
-function jsonOut(obj: any, newline = true) {
-    let buf = te.encode(JSON.stringify(obj) + '\n')
-    if (!newline) { buf = buf.subarray(buf.byteOffset, buf.byteLength - 1) }
-    writeAllSync(Deno.stdout, buf)
+Deno.close(logFile.rid)
+
+async function jsonOutStream(obj: unknown, writer: Deno.Writer = Deno.stdout) {
+    //if (!newline) { buf = buf.subarray(buf.byteOffset, buf.byteLength - 1) }
+    await writeAll(writer, te.encode(JSON.stringify(obj) + '\n'))
 }
 
 async function *structLogs(list: ListObjectsV2Output) {
@@ -119,3 +120,27 @@ function parseEntry(entry: string) {
     assert(!host.endsWith('/') && path.startsWith('/'))
     return { date, ip, url: new URL('http://' + host.trim() + path.trim()), status, referrer, ua }
 }
+
+// type Log = ReturnType<typeof structLogs> extends AsyncGenerator<infer T> ? T : never
+// type LogEntry = { date: Date, ip: string, source: string, referrer: string | null, ua: string }
+
+
+// if ($.delete && Deno.isatty(Deno.stdin.rid)) {
+//     const text = new TextDecoder().decode(await readAll(Deno.stdin))
+//         , keys = text.trim()
+//             .split(/\r?\n/)
+//             .map<LogEntry>(s => JSON.parse(s))
+//             .map<string>( ({ log }) => log )
+//             .reduce<string[]>(
+//                 (p, key, _i, _a) => {
+//                     if (!p.includes(key)) { p.push(key) }
+//                     return p
+//                 }
+//                 , [] )
+
+//     //const Objects = keys.map( Key => ({ Key }) )
+//     //    , resp = await s3.deleteObjects({ Bucket: $.bucket, Delete: { Objects } })
+
+//     for (const Key of keys) { await s3.deleteObject({ Bucket: $.bucket, Key }) }
+//     Deno.exit()
+// }
