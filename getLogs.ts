@@ -8,9 +8,9 @@ import { readLines } from 'https://deno.land/std/io/mod.ts'
 import { parse } from 'https://deno.land/std/flags/mod.ts'
 
 const $ = parse(Deno.args, {
-    default: { delete: false, list: false, logfile: '.s3-log.json', ipDB: '.s3-log.ipdb.json', pixel: '/c.gif' },
-    string: [ 'bucket', 'prefix', 'region', 'logfile', 'ipDB', 'pixel' ],
-    alias: { list: 'l', delete: 'd', bucket: 'b', prefix: 'p', region: 'r', logfile: 'f', pixel: 'x', ipDB: 'i' }
+    default: { list: false, logFile: '.s3-log.json', geoCache: '.s3-log.geo.json', pixel: '/c.gif' },
+    string: [ 'bucket', 'prefix', 'region', 'logFile', 'geoCache', 'pixel' ],
+    alias: { list: 'l', bucket: 'b', prefix: 'p', region: 'r', logFile: 'f', pixel: 'x', geoCache: 'i' }
 })
 
 const td = new TextDecoder
@@ -40,13 +40,8 @@ async function mkFactory(region: string) {
 }
 
 const list = await s3.listObjectsV2({ Bucket: $.bucket, Prefix: $.prefix })
-if ($.list) {
-    jsonOutStream(list)
-    Deno.exit()
-}
-
-const my_ip = await fetch('https://ip.seeip.org/').then(r => r.text())
-    , logFile = await Deno.open($.logfile, { create: true, append: true })
+    , myIP = await fetch('https://ip.seeip.org/').then(r => r.text())
+    , logFile = $.list ? Deno.stdout : await Deno.open($.logFile, { create: true, append: true })
 
 for await (const [ Key, entries ] of structLogs(list)) {
     for (const entry of entries) {
@@ -54,60 +49,68 @@ for await (const [ Key, entries ] of structLogs(list)) {
             , path = decodeURIComponent(url.pathname)
             , referrer = url.searchParams.get('r')
         
-        if (path !== $.pixel || ip === my_ip) { continue }
+        if (path !== $.pixel || ip === myIP) { continue }
 
         await jsonOutStream({ date, ip, source, referrer, ua }, logFile)
     }
 
-    // if ($.delete) {}
-    await s3.deleteObject({ Bucket: $.bucket, Key})
+    if (!$.list) {
+        await s3.deleteObject({ Bucket: $.bucket, Key})
+    }
 }
 
 Deno.close(logFile.rid)
 
-updateIpDB()
+if (!$.list) {
+    updateGeoCache()
+}
 
-async function updateIpDB() {
+Deno.exit()
+
+async function updateGeoCache() {
     let logFile: Deno.FsFile
-    try { logFile = await Deno.open($.logfile, { read: true }) }
+    try { logFile = await Deno.open($.logFile, { read: true }) }
     catch(_e) { return }
 
-    const ipset = await readIpDB()
-        , ipDB = await Deno.open($.ipDB, { append: true, create: true })
+    const ipset = await readGeoCache()
+        , geoCache = await Deno.open($.geoCache, { append: true, create: true })
 
     try {
         for await (const line of readLines(logFile)) {
-            const { ip } = JSON.parse(line)
-            if (ipset.has(ip)) { continue }
-            ipset.add(ip)
+            const { entryIP } = JSON.parse(line)
+            if (ipset.has(entryIP)) { continue }
+            ipset.add(entryIP)
+            const { ip, city, region, organization, country,
+                    postal_code, asn, latitude, longitude
+                  } = await fetch(`https://ip.seeip.org/geoip/${entryIP}`).then(resp => resp.json())
 
-            jsonOutStream(
-                await fetch(`https://ip.seeip.org/geoip/${ip}`).then(resp => resp.json()),
-                ipDB
-            )
+            jsonOutStream({
+                ip, city, region, organization, country,
+                postal_code, asn, latitude, longitude
+            }, geoCache)
         }
     }
     finally {
         Deno.close(logFile.rid)
-        Deno.close(ipDB.rid)
+        Deno.close(geoCache.rid)
     }
 }
 
-async function readIpDB() {
-    let ipDB: Deno.FsFile
-    try { ipDB = await Deno.open($.ipDB, { read: true }) }
+async function readGeoCache() {
+    let geoCache: Deno.FsFile
+    try { geoCache = await Deno.open($.geoCache, { read: true }) }
     catch(_e) { return new Set<string> }
 
     try {
         const ipset = new Set<string>
-        for await (const line of readLines(ipDB)) {
+        for await (const line of readLines(geoCache)) {
             const { ip } = JSON.parse(line)
             ipset.add(ip)
         }
         return ipset
     }
     finally {
-        Deno.close(ipDB.rid)
+        Deno.close(geoCache.rid)
     }
 }
 
