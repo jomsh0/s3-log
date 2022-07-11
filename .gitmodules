@@ -1,0 +1,3 @@
+[submodule "s3-log.js"]
+	path = s3-log.js
+	url = https://gist.github.com/415e09d9f50583e11b0f1ee008e3fb09.git
