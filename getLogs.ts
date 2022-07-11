@@ -62,7 +62,7 @@ for await (const [ Key, entries ] of structLogs(list)) {
 Deno.close(logFile.rid)
 
 if (!$.list) {
-    updateGeoCache()
+    await updateGeoCache()
 }
 
 Deno.exit()
@@ -77,16 +77,15 @@ async function updateGeoCache() {
 
     try {
         for await (const line of readLines(logFile)) {
-            const { entryIP } = JSON.parse(line)
+            const { ip: entryIP } = JSON.parse(line)
             if (ipset.has(entryIP)) { continue }
             ipset.add(entryIP)
-            const { ip, city, region, organization, country,
-                    postal_code, asn, latitude, longitude
-                  } = await fetch(`https://ip.seeip.org/geoip/${entryIP}`).then(resp => resp.json())
 
+            const J = await fetch(`https://ip.seeip.org/geoip/${entryIP}`).then(resp => resp.json())
             jsonOutStream({
-                ip, city, region, organization, country,
-                postal_code, asn, latitude, longitude
+                ip: J.ip, city: J.city, region: J.region, organization: J.organization,
+                country: J.country, postal_code: J.postal_code, asn: J.asn,
+                latitude: J.latitude, longitude: J.longitude
             }, geoCache)
         }
     }
