@@ -47,11 +47,12 @@ for await (const [ Key, entries ] of structLogs(list)) {
     for (const entry of entries) {
         const { url, date, ip, ua, referrer: source }  = entry
             , path = decodeURIComponent(url.pathname)
-            , referrer = url.searchParams.get('r')
+            , referrer = url.searchParams.get('r') ?? url.searchParams.get('R')
+            , lsource = url.searchParams.get('L')
 
         if (path !== $.pixel || ip === myIP) { continue }
 
-        await jsonOutStream({ date, ip, source, referrer, ua }, logFile)
+        await jsonOutStream({ date, ip, source, lsource, referrer, ua }, logFile)
     }
 
     if (!$.list) {
