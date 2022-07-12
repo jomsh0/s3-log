@@ -8,7 +8,7 @@ import { readLines } from 'https://deno.land/std/io/mod.ts'
 import { parse } from 'https://deno.land/std/flags/mod.ts'
 
 const $ = parse(Deno.args, {
-    default: { list: false, logFile: '.s3-log.json', geoCache: '.s3-log.geo.json', pixel: '/c.gif' },
+    default: { list: false, logFile: '.s3-log.json', geoCache: '.s3-log.geoip.json', pixel: '/c.gif' },
     string: [ 'bucket', 'prefix', 'region', 'logFile', 'geoCache', 'pixel' ],
     alias: { list: 'l', bucket: 'b', prefix: 'p', region: 'r', logFile: 'f', pixel: 'x', geoCache: 'i' }
 })
@@ -48,7 +48,7 @@ for await (const [ Key, entries ] of structLogs(list)) {
         const { url, date, ip, ua, referrer: source }  = entry
             , path = decodeURIComponent(url.pathname)
             , referrer = url.searchParams.get('r')
-        
+
         if (path !== $.pixel || ip === myIP) { continue }
 
         await jsonOutStream({ date, ip, source, referrer, ua }, logFile)
@@ -133,7 +133,7 @@ async function *textLogs(list: ListObjectsV2Output) {
         if (!Key) { continue }
         const { Body } = await s3.getObject({ Bucket, Key })
         if (!Body) { continue }
-        
+
         const entries = td.decode(Body).trim().split(/\r?\n/)
 
         yield [ Key, entries ] as const
@@ -157,7 +157,7 @@ function parseEntry(entry: string) {
             yield next
         }
     }
-    
+
     const [ _owner, _bucket, stamp, ip, _user_id, _rid, _op, _key,
             req, status, _err, _sent, _size, _ms_total, _ms_s3, referrer,
             ua, _ver, _host, _sig, _ciph, _auth, host, _tlsv, _access_pt ]
