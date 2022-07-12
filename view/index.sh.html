@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=utf-8>
+  <meta name=viewport content='width=device-width'>
+
+  <title>s3-log Viewer</title>
+
+  <!--<link rel=icon href=/favicon.svg sizes=any type=image/svg+xml>
+  <link rel=stylesheet href=style.css>-->
+  <script src=ua-parser.js></script>
+  <style>
+    :root { font-family: system-ui; }
+    table { border-collapse: collapse; }
+    td { max-width: 15rem; }
+    th { text-align: initial; }
+    td, th {
+      border: solid transparent;
+      border-width: .25rem 1rem;
+    }
+  </style>
+</head>
+
+<script id=logs type=text/ndjson> <% cat ../.s3-log.json %> </script>
+<script id=geoip type=text/ndjson> <% cat ../.s3-log.geoip.json %> </script>
+
+<main>
+  <h1>s3-log viewer</h1>
+
+  <table>
+    <thead>
+      <tr><th>Date<th>Page<th>Referrer<th>City<th>IP address<th>User agent
+    </thead>
+
+    <tbody>
+    </tbody>
+  </table>
+</main>
+<script>
+  const logs = document.querySelector('script#logs').text.trim().split('\n').map(JSON.parse)
+      , geodb = document.querySelector('script#geoip').text.trim().split('\n').map(JSON.parse)
+      , tbody = document.querySelector('tbody')
+      , geomap = new Map(geodb.map(o => [o.ip, o]))
+
+  for (const log of logs) {
+    const tr = tbody.appendChild(document.createElement('tr'))
+    const { browser, os } = UAParser(log.ua)
+    ; [ new Date(log.date).toLocaleString(), new URL(log.source).pathname, log.referrer, geomap.get(log.ip).city, log.ip, `${browser.name}/${os.name}` ]
+    .forEach(d => {
+      const td = tr.appendChild(document.createElement('td'))
+      td.textContent = d
+    })
+  }
+  
+</script>
+</html>
