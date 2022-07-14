@@ -29,11 +29,9 @@
 
   <table>
     <thead>
-      <tr><th>Date<th>Page<th>Referrer<th>City<th>IP address<th>User agent
-    </thead>
-
-    <tbody>
-    </tbody>
+      <tr>
+        <th>Date <th>Page <th>Referrer <th>City <th>Network <th>User agent
+    <tbody />
   </table>
 </main>
 <script>
@@ -43,14 +41,41 @@
       , geomap = new Map(geodb.map(o => [o.ip, o]))
 
   for (const log of logs) {
-    const tr = tbody.appendChild(document.createElement('tr'))
     const { browser, os } = UAParser(log.ua)
-    ; [ new Date(log.date).toLocaleString(), new URL(log.source).pathname, log.referrer, geomap.get(log.ip).city, log.ip, `${browser.name}/${os.name}` ]
-    .forEach(d => {
-      const td = tr.appendChild(document.createElement('td'))
-      td.textContent = d
-    })
+        , tr = tbody.insertRow()
+        , geo = geomap.get(log.ip)
+        , loc = [ geo.city, geo.region_code ?? geo.region ].filter(p => !!p)
+
+    if (geo.country && (loc.length === 0 || geo.country !== 'United States')) { loc.push(geo.country) }
+    ; [ new Date(log.date).toLocaleString(), new URL(log.lsource ?? log.source).pathname, log.referrer, loc.join(', '), orgClean(geo.organization), `${browser.name}/${os.name}` ]
+        .forEach(d => { tr.insertCell().textContent = d })
   }
-  
+
+  function orgClean(org) {
+    if (org === 'MIDCO-NET') { return 'Midco' }
+    if (org.match(/^AMAZON-\d+$/)) { return 'Amazon' }
+    if (org === 'AMAZON-AES') { return 'Amazon AES' }
+    if (org === 'STRATA-NETWORKS') { return 'Strata' }
+    if (org === 'GOOGLE-FIBER') { return 'Google Fiber' }
+    if (org === 'GOOGLEWIFI') { return 'Google WiFi' }
+    if (org === 'GOOGLE') { return 'Google' }
+    if (org === 'FACEBOOK') { return 'Facebook' }
+    if (org === 'MICROSOFT-CORP-MSN-AS-BLOCK') { return 'Microsoft/MSN' }
+    if (org === 'ALLENPRESSKANSAS') { return 'Allen Press' }
+    if (org === 'SUREWEST-KANSAS') { return 'Surewest KS' }
+    if (org === 'CELLCO-PART') { return 'Cellco/Verizon' }
+    if (org === 'TOT Public Company Limited') { return 'TOT Ltd' }
+    if (org.match(/^COGENT-\d+$/)) { return 'Cogent' }
+    if (org.match(/^COMCAST-\d+$/)) { return 'Comcast' }
+    if (org.match(/^ATT-MOBILITY/)) { return 'AT&T Mobility' }
+    if (org.match(/^ATT-INTERNET/)) { return 'AT&T Internet' }
+    if (org.match(/^T-MOBILE-AS\d+$/)) { return 'T-Mobile' }
+
+    let m
+    if (m = org.match(/^TWC-\d+-([A-Z]+)$/)) { return 'TWC ' + m[1] }
+
+    return org
+  }
+
 </script>
 </html>
