@@ -45,14 +45,14 @@ const list = await s3.listObjectsV2({ Bucket: $.bucket, Prefix: $.prefix })
 
 for await (const [ Key, entries ] of structLogs(list)) {
     for (const entry of entries) {
-        const { url, date, ip, ua, referrer: source }  = entry
+        const { url, date, ip, ua }  = entry
             , path = decodeURIComponent(url.pathname)
-            , referrer = url.searchParams.get('r') ?? url.searchParams.get('R')
-            , lsource = url.searchParams.get('L')
+            , referrer = url.searchParams.get('R')
+            , source = url.searchParams.get('L')
 
         if (path !== $.pixel || ip === myIP) { continue }
 
-        await jsonOutStream({ date, ip, source, lsource, referrer, ua }, logFile)
+        await jsonOutStream({ date, ip, source, referrer, ua }, logFile)
     }
 
     if (!$.list) {
@@ -84,9 +84,9 @@ async function updateGeoCache() {
 
             const J = await fetch(`https://ip.seeip.org/geoip/${entryIP}`).then(resp => resp.json())
             jsonOutStream({
-                ip: J.ip, city: J.city, region: J.region, organization: J.organization,
-                country: J.country, postal_code: J.postal_code, asn: J.asn,
-                latitude: J.latitude, longitude: J.longitude
+                ip: J.ip, city: J.city, region: J.region, region_code: J.region_code,
+                organization: J.organization, country: J.country, postal_code: J.postal_code,
+                asn: J.asn, latitude: J.latitude, longitude: J.longitude
             }, geoCache)
         }
     }
