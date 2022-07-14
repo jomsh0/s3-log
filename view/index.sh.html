@@ -35,45 +35,70 @@
   </table>
 </main>
 <script>
-  const logs = document.querySelector('script#logs').text.trim().split('\n').map(JSON.parse)
-      , geodb = document.querySelector('script#geoip').text.trim().split('\n').map(JSON.parse)
+  const logs = document.querySelector('script#logs').text
+                .trim().split('\n').map(JSON.parse)
+      , geodb = document.querySelector('script#geoip').text
+                .trim().split('\n').map(JSON.parse)
       , tbody = document.querySelector('tbody')
       , geomap = new Map(geodb.map(o => [o.ip, o]))
 
-  for (const log of logs) {
-    const { browser, os } = UAParser(log.ua)
-        , tr = tbody.insertRow()
-        , geo = geomap.get(log.ip)
-        , loc = [ geo.city, geo.region_code ?? geo.region ].filter(p => !!p)
+  logs.forEach(log => { log.date = new Date(log.date) })
+  logs.sort((L1, L2) => L2.date - L1.date)
 
-    if (geo.country && (loc.length === 0 || geo.country !== 'United States')) { loc.push(geo.country) }
-    ; [ new Date(log.date).toLocaleString(), new URL(log.lsource ?? log.source).pathname, log.referrer, loc.join(', '), orgClean(geo.organization), `${browser.name}/${os.name}` ]
-        .forEach(d => { tr.insertCell().textContent = d })
+  for (const log of logs) {
+    const tr = tbody.insertRow()
+    for (const data of cellGen(log)) {
+      tr.insertCell().textContent = data
+    }
+  }
+
+  function getLoc(geo) {
+    const loc = [ geo.city, geo.region_code ?? geo.region, geo.country ].filter(p => !!p)
+
+    if (loc.length > 1 && geo.country === 'United States') { loc.pop() }
+    return loc
+  }
+
+  function *cellGen(log) {
+    const { browser, os } = UAParser(log.ua)
+        , geo = geomap.get(log.ip)
+
+    yield new Date(log.date).toLocaleString()
+    yield new URL(log.lsource ?? log.source).pathname
+    yield log.referrer
+    yield getLoc(geo).join(', ')
+    yield orgClean(geo.organization)
+    yield browser.name + '/' + os.name
   }
 
   function orgClean(org) {
-    if (org === 'MIDCO-NET') { return 'Midco' }
+    // Exact matches
+    switch (org) {
+      case 'MIDCO-NET': return 'Midco'
+      case 'AMAZON-AES': return 'Amazon AES'
+      case 'STRATA-NETWORKS': return 'Strata'
+      case 'GOOGLE-FIBER': return 'Google Fiber'
+      case 'GOOGLEWIFI': return 'Google WiFi'
+      case 'GOOGLE': return 'Google'
+      case 'FACEBOOK': return 'Facebook'
+      case 'MICROSOFT-CORP-MSN-AS-BLOCK': return 'Microsoft/MSN'
+      case 'ALLENPRESSKANSAS': return 'Allen Press'
+      case 'SUREWEST-KANSAS': return 'Surewest KS'
+      case 'CELLCO-PART': return 'Cellco/Verizon'
+      case 'TOT Public Company Limited': return 'TOT Ltd'
+    }
+    // Non-capturing patterns
     if (org.match(/^AMAZON-\d+$/)) { return 'Amazon' }
-    if (org === 'AMAZON-AES') { return 'Amazon AES' }
-    if (org === 'STRATA-NETWORKS') { return 'Strata' }
-    if (org === 'GOOGLE-FIBER') { return 'Google Fiber' }
-    if (org === 'GOOGLEWIFI') { return 'Google WiFi' }
-    if (org === 'GOOGLE') { return 'Google' }
-    if (org === 'FACEBOOK') { return 'Facebook' }
-    if (org === 'MICROSOFT-CORP-MSN-AS-BLOCK') { return 'Microsoft/MSN' }
-    if (org === 'ALLENPRESSKANSAS') { return 'Allen Press' }
-    if (org === 'SUREWEST-KANSAS') { return 'Surewest KS' }
-    if (org === 'CELLCO-PART') { return 'Cellco/Verizon' }
-    if (org === 'TOT Public Company Limited') { return 'TOT Ltd' }
     if (org.match(/^COGENT-\d+$/)) { return 'Cogent' }
     if (org.match(/^COMCAST-\d+$/)) { return 'Comcast' }
     if (org.match(/^ATT-MOBILITY/)) { return 'AT&T Mobility' }
     if (org.match(/^ATT-INTERNET/)) { return 'AT&T Internet' }
     if (org.match(/^T-MOBILE-AS\d+$/)) { return 'T-Mobile' }
-
     let m
+    // Capturing patterns
     if (m = org.match(/^TWC-\d+-([A-Z]+)$/)) { return 'TWC ' + m[1] }
 
+    // Default
     return org
   }
 
