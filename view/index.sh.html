@@ -18,6 +18,9 @@
       border: solid transparent;
       border-width: .25rem 1rem;
     }
+    td:nth-of-type(1) {
+      text-align: right;
+    }
   </style>
 </head>
 
@@ -31,7 +34,6 @@
     <thead>
       <tr>
         <th>Date <th>Page <th>Referrer <th>City <th>Network <th>User agent
-    <tbody />
   </table>
 </main>
 <script>
@@ -39,16 +41,47 @@
                 .trim().split('\n').map(JSON.parse)
       , geodb = document.querySelector('script#geoip').text
                 .trim().split('\n').map(JSON.parse)
-      , tbody = document.querySelector('tbody')
       , geomap = new Map(geodb.map(o => [o.ip, o]))
 
   logs.forEach(log => { log.date = new Date(log.date) })
   logs.sort((L1, L2) => L2.date - L1.date)
 
-  for (const log of logs) {
-    const tr = tbody.insertRow()
-    for (const data of cellGen(log)) {
-      tr.insertCell().textContent = data
+  for (const [ day, daysLogs ] of days(logs)) {
+    const tbody = document.createElement('tbody')
+        , dayHead = tbody.insertRow().appendChild(document.createElement('th'))
+
+    dayHead.textContent = day.toDateString()
+    dayHead.setAttribute('scope', 'rowgroup')
+
+    for (const log of daysLogs) {
+      const tr = tbody.insertRow()
+
+      for (const data of cellGen(log)) {
+        tr.insertCell().textContent = data
+      }
+    }
+
+    document.querySelector('table').appendChild(tbody)
+  }
+
+  function *days(logs) {
+    const iter = logs[Symbol.iterator]()
+    let res = iter.next()
+
+    for (;;) {
+      if (res.done) { return }
+      const date = res.value.date
+
+      yield [ date, daysLogs() ]
+      
+      function *daysLogs() {
+        yield res.value
+        while (res = iter.next()) {
+          if (res.done) { return }
+          if (res.value.date.toLocaleDateString() !== date.toLocaleDateString()) { return }
+          yield res.value
+        }
+      }
     }
   }
 
@@ -63,7 +96,7 @@
     const { browser, os } = UAParser(log.ua)
         , geo = geomap.get(log.ip)
 
-    yield new Date(log.date).toLocaleString()
+    yield new Date(log.date).toLocaleTimeString()
     yield new URL(log.lsource ?? log.source).pathname
     yield log.referrer
     yield getLoc(geo).join(', ')
