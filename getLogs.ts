@@ -45,14 +45,12 @@ const list = await s3.listObjectsV2({ Bucket: $.bucket, Prefix: $.prefix })
 
 for await (const [ Key, entries ] of structLogs(list)) {
     for (const entry of entries) {
-        const { url, date, ip, ua }  = entry
+        const { url, date, ip, ua, referrer } = entry
             , path = decodeURIComponent(url.pathname)
-            , referrer = url.searchParams.get('R')
-            , source = url.searchParams.get('L')
 
         if (path !== $.pixel || ip === myIP) { continue }
 
-        await jsonOutStream({ date, ip, source, referrer, ua }, logFile)
+        await jsonOutStream({ date, ip, params: [...url.searchParams.entries()], referrer, ua }, logFile)
     }
 
     if (!$.list) {
@@ -165,10 +163,11 @@ function parseEntry(entry: string) {
           = [ ...parts(entry) ]
 
     const date = new Date(stamp.replace(':', ' '))
-        , path = req.split(' ')[1] ?? req
 
-    assert(!host.endsWith('/') && path.startsWith('/'))
-    return { date, ip, url: new URL('http://' + host.trim() + path.trim()), status, referrer, ua }
+    let [ method, resource ] = req.split(' ')
+    if (!resource.startsWith('/')) { resource = '/' + resource }
+
+    return { date, ip, method, url: new URL('https://' + host + resource), status, referrer, ua }
 }
 
 // type Log = ReturnType<typeof structLogs> extends AsyncGenerator<infer T> ? T : never
