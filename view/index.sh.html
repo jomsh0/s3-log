@@ -17,15 +17,45 @@
     td, th {
       border: solid transparent;
       border-width: .25rem 1rem;
+      /* long URLs overflow with scrollbar and ... indicator. */
+      white-space: nowrap;
+      overflow: auto;
+      text-overflow: ellipsis;
     }
+    /* make scrollbars invisible */
+    td::-webkit-scrollbar { display: none; }
+    /* when hovering/scrolling, replace the ... indicator with actual content */
+    td:hover { text-overflow: clip; }
+
+    /* This is a better way to handle overflow, but only if script adds the
+     * class to the specific cells that need it--things get twitchy if it's
+     * on every cell.
+     *
+     * Perhaps best of all would be to leave the cell elements themselves
+     * alone, and place the text content in an inner <span> that could be
+     * positioned relatively and manipulted on tap/hover without affecting
+     * the table itself.
+     */
+    td.overflow:hover {
+      display: block;
+      position: absolute;
+      min-width: max-content;
+      background: white;
+      border: none;
+      /*outline: solid 1px #ddd;*/
+      box-shadow: 1px 1px 3px #666;
+      padding: .2em .4em;
+      border-radius: .2em;
+    }
+
     td:nth-of-type(1) {
       text-align: right;
     }
   </style>
-</head>
 
-<script id=logs type=text/ndjson> <% cat ../.s3-log.json %> </script>
-<script id=geoip type=text/ndjson> <% cat ../.s3-log.geoip.json %> </script>
+  <script id=logs type=text/ndjson><% cat ../.s3-log.json %></script>
+  <script id=geoip type=text/ndjson><% cat ../.s3-log.geoip.json %></script>
+</head>
 
 <main>
   <h1>s3-log viewer</h1>
@@ -33,7 +63,7 @@
   <table>
     <thead>
       <tr>
-        <th>Date <th>Page <th>Referrer <th>City <th>Network <th>User agent
+        <th>Date <th>Page <th>Referrer <th>Location <th>Network <th>User agent
   </table>
 </main>
 <script>
