@@ -125,10 +125,11 @@
   function *cellGen(log) {
     const { browser, os } = UAParser(log.ua)
         , geo = geomap.get(log.ip)
+        , params = Object.fromEntries(log.params) // new URLSearchParams(log.params)
 
     yield new Date(log.date).toLocaleTimeString()
-    yield new URL(log.lsource ?? log.source).pathname
-    yield log.referrer
+    yield new URL(params.L ?? log.referrer).pathname
+    yield params.R
     yield getLoc(geo).join(', ')
     yield orgClean(geo.organization)
     yield browser.name + '/' + os.name
