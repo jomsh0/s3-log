@@ -1,4 +1,6 @@
-// USER PARAMETERS
+////
+///   PARAMETERS
+//
 const BUCKET = ''
     , REGION = '' // e.g. us-east-2
     , PIXEL  = 'c.gif'
@@ -10,22 +12,13 @@ if (location.protocol != 'file:'     &&
 {
     const url = new URL(`https://${BUCKET}.s3.${REGION}.amazonaws.com/${PIXEL}`)
     if (document.referrer) {
-        url.searchParams.set('r', cleanQuery(document.referrer))
+        url.searchParams.set('R', document.referrer)
     }
+    url.searchParams.set('L', window.location)
 
     fetch(url, {                     // Opaque response is fine; prevent
-        mode: 'no-cors'              //  console errors related to CORS
-      , referrer: cleanQuery(location.href)
+        mode: 'no-cors'              //   console errors related to CORS
       , referrerPolicy: 'unsafe-url' // Track precise URL
       , cache: 'no-store'            // Never use cache
     }).catch(e => e)
-}
-
-function cleanQuery(s_url) {
-    if (!s_url) { return s_url }
-    const url = new URL(s_url)
-
-    if url.searchParams.has('fbclid') { url.searchParams.set('fbclid','') }
-
-    return url.href
 }
