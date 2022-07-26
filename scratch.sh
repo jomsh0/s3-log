@@ -17,8 +17,9 @@ filter() {
            select(.ip != "'"$PUB_IP"'")'
 }
 # filter
+# jq '{ip,city,region,organization,country,postal_code,asn,latitude,longitude}'
 
 geoip() {
     curl -fsL https://ip.seeip.org/geoip/$1
 }
-# while read ip; do geoip $ip; done
+while read ip; do geoip $ip; done
